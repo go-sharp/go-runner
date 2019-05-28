@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -12,54 +13,69 @@ var red = color.New(color.FgRed)
 var green = color.New(color.FgGreen)
 var yellow = color.New(color.FgYellow)
 
+type Level int
+
 const (
-	info = iota
-	warn
-	err
+	InfoLevel = iota
+	WarnLevel
+	ErrorLevel
 )
 
+type writer func(p []byte) (n int, err error)
+
+func (w writer) Write(p []byte) (n int, err error) {
+	return w(p)
+}
+
+func CreateWriter(lvl Level, prefix string) io.Writer {
+	return writer(func(p []byte) (n int, err error) {
+		log(lvl, "%v: %v", prefix, string(p))
+		return len(p), nil
+	})
+}
+
 func Info(args ...interface{}) {
-	log(info, "", args...)
+	log(InfoLevel, "", args...)
 }
 
 func Infoln(args ...interface{}) {
-	log(info, "", append(args, "\n")...)
+	log(InfoLevel, "", append(args, "\n")...)
 }
 
 func Infof(format string, args ...interface{}) {
-	log(info, format, args...)
+	log(InfoLevel, format, args...)
 }
 
 func Warn(args ...interface{}) {
-	log(warn, "", args...)
+	log(WarnLevel, "", args...)
 }
 
 func Warnln(args ...interface{}) {
-	log(warn, "", append(args, "\n")...)
+	log(WarnLevel, "", append(args, "\n")...)
 }
 
 func Warnf(format string, args ...interface{}) {
-	log(warn, format, args...)
+	log(WarnLevel, format, args...)
 }
 
 func Error(args ...interface{}) {
-	log(err, "", args...)
+	log(ErrorLevel, "", args...)
 }
 
 func Errorln(args ...interface{}) {
-	log(err, "", append(args, "\n")...)
+	log(ErrorLevel, "", append(args, "\n")...)
 }
 
 func Errorf(format string, args ...interface{}) {
-	log(err, format, args...)
+	log(ErrorLevel, format, args...)
 }
 
-func log(level int, format string, args ...interface{}) {
+func log(level Level, format string, args ...interface{}) {
 	date := time.Now().Format("2006-01-02 15:04:05")
 	switch level {
-	case warn:
+	case WarnLevel:
 		yellow.Printf("%v|warn: ", date)
-	case err:
+	case ErrorLevel:
 		red.Printf("%v|erro: ", date)
 	default:
 		green.Printf("%v|info: ", date)
