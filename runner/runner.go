@@ -247,7 +247,7 @@ MAINLOOP:
 
 			r.main = &exec.Cmd{Dir: r.pwd, Path: r.goBin, Args: append([]string{"go", "run", "."}, r.cmdArgs...)}
 			r.main.Stdout = os.Stdout
-			r.main.Stderr = os.Stdout
+			r.main.Stderr = os.Stderr
 			if err := r.main.Start(); err != nil {
 				log.Errorf("Failed to start process: %v\n", err)
 			}
@@ -268,6 +268,10 @@ func (r *Runner) killMain() {
 	if r.main != nil && r.main.Process != nil {
 		if err := r.main.Process.Kill(); err != nil {
 			log.Errorf("Failed to kill process with pid '%v': %v \n", r.main.Process.Pid, err)
+		}
+
+		if _, err := r.main.Process.Wait(); err != nil {
+			log.Warnln("Failed to wait for process:", err)
 		}
 		r.main = nil
 	}

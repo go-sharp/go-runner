@@ -10,16 +10,16 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-const Version = "0.1.3"
+const Version = "0.1.6"
 
 func main() {
-	cd := flag.StringP("entry", "e", "./", "The directory with the main.go file (default: current working directory)")
-	testdirs := flag.StringSliceP("tests", "t", []string{"./"}, "Test directories in which the go test command will be executed (default: current working directory)")
-	skipTests := flag.BoolP("skip-tests", "s", false, "Don't run any tests (default: false)")
-	recursiveTests := flag.BoolP("test-non-recursive", "r", false, "Don't run tests recursively (default: false)")
-	watchDirs := flag.StringSliceP("watch-dirs", "w", []string{"./"}, "Directories to listen recursively for file changes (*.go, go.mod, go.sum) (default: entry directory)")
-	excludeDirs := flag.StringSliceP("exclude-dirs", "x", []string{}, "Don't listen to changes in these directories (default: none)")
-	cmdArgs := flag.StringSliceP("args", "a", []string{}, "Arguments to pass to the program (default: none)")
+	cd := flag.StringP("entry", "e", "./", "The directory with the main.go file")
+	testdirs := flag.StringSliceP("tests", "t", []string{"./"}, "Test directories in which the go test command will be executed")
+	skipTests := flag.BoolP("skip-tests", "s", false, "Don't run any tests")
+	recursiveTests := flag.BoolP("test-non-recursive", "r", false, "Don't run tests recursively")
+	watchDirs := flag.StringSliceP("watch-dirs", "w", []string{"./"}, "Directories to listen recursively for file changes (*.go, go.mod, go.sum)")
+	excludeDirs := flag.StringSliceP("exclude-dirs", "x", []string{}, "Don't listen to changes in these directories")
+	cmdArgs := flag.StringSliceP("args", "a", []string{}, "Arguments to pass to the program")
 	help := flag.BoolP("help", "h", false, "Show help")
 
 	flag.Parse()
