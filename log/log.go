@@ -29,7 +29,7 @@ func (w writer) Write(p []byte) (n int, err error) {
 
 func CreateWriter(lvl Level, prefix string) io.Writer {
 	return writer(func(p []byte) (n int, err error) {
-		log(lvl, "%v: %v", prefix, string(p))
+		log(lvl, "[%v] %v", prefix, string(p))
 		return len(p), nil
 	})
 }
