@@ -11,9 +11,11 @@ import (
 	"github.com/go-sharp/go-runner/log"
 )
 
-type RunnerOption func(r *Runner)
+// Option configures a runner instance.
+type Option func(r *Runner)
 
-func NewRunner(options ...RunnerOption) *Runner {
+// NewRunner creates a new runner instance with the given options.
+func NewRunner(options ...Option) *Runner {
 	goBin, err := exec.LookPath("go")
 	if err != nil {
 		panic("go compiler not found: " + err.Error())
@@ -29,25 +31,34 @@ func NewRunner(options ...RunnerOption) *Runner {
 	return runner
 }
 
-func CommandArgs(args ...string) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// CommandArgs configures the runner to pass the given arguments
+// to the go program that is executed by the runner.
+func CommandArgs(args ...string) Option {
+	return Option(func(r *Runner) {
 		r.cmdArgs = args
 	})
 }
 
-func RunTests(run bool) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// RunTests configures the runner to execute tests if true, otherwise
+// tests will be skipped.
+func RunTests(run bool) Option {
+	return Option(func(r *Runner) {
 		r.runTst = run
 	})
 }
 
-func RecursiveTests(recursive bool) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// RecursiveTests configures the runner to call
+//    go test ./...
+// instead of
+//    go test
+func RecursiveTests(recursive bool) Option {
+	return Option(func(r *Runner) {
 		r.tstRecursive = recursive
 	})
 }
 
-func WorkingDirectory(path string) RunnerOption {
+// WorkingDirectory configures the runner to use the given path as the working directory.
+func WorkingDirectory(path string) Option {
 	if path == "" {
 		path = "./"
 	}
@@ -57,25 +68,33 @@ func WorkingDirectory(path string) RunnerOption {
 		// we shouldn't get here, but if so, then we bail out completely
 		panic(err)
 	}
-	return RunnerOption(func(r *Runner) {
+	return Option(func(r *Runner) {
 		r.pwd = path
 	})
 }
 
-func TestWorkingDirectories(paths ...string) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// TestWorkingDirectories configures the runner to use the given paths
+// as the working directories for tests. The runner calls 'go test' for
+// each path, this is useful if the runner is not configured to run tests
+// recursively.
+func TestWorkingDirectories(paths ...string) Option {
+	return Option(func(r *Runner) {
 		r.tstPwd = sanitizePaths(paths...)
 	})
 }
 
-func WatchDirs(paths ...string) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// WatchDirs configures the runner to watch recursively for file changes
+// in the given directories.
+func WatchDirs(paths ...string) Option {
+	return Option(func(r *Runner) {
 		r.watchDirs = sanitizePaths(paths...)
 	})
 }
 
-func ExcludeDirs(paths ...string) RunnerOption {
-	return RunnerOption(func(r *Runner) {
+// ExcludeDirs configures the runner not to listen
+// to file changes in the given directories.
+func ExcludeDirs(paths ...string) Option {
+	return Option(func(r *Runner) {
 		if len(paths) == 0 {
 			r.excludeDirs = []string{}
 		} else {
@@ -111,6 +130,9 @@ func sanitizePaths(paths ...string) []string {
 	return dirs
 }
 
+// Runner listen to file changes in *.go, go.mod and go.sum
+// files and then recompiles/runs the main go program in the
+// current working directory.
 type Runner struct {
 	goBin        string
 	cmdArgs      []string
@@ -126,6 +148,8 @@ type Runner struct {
 	done         chan struct{}
 }
 
+// Stop stops the runner from listening to file changes and
+// shuts down the main go program.
 func (r *Runner) Stop() error {
 	if r.watcher != nil {
 		log.Infoln("Stop looking for file changes")
@@ -135,6 +159,7 @@ func (r *Runner) Stop() error {
 	return nil
 }
 
+// Watch starts listening for file changes.
 func (r *Runner) Watch() (err error) {
 	if r.watcher != nil {
 		return errors.New("Runner already watching for file changes")
@@ -154,7 +179,7 @@ func (r *Runner) Watch() (err error) {
 				return nil
 			}
 
-			if startsAnyWith(r.excludeDirs, path) || strings.HasPrefix(filepath.Base(path), ".") {
+			if startsWithAny(r.excludeDirs, path) || strings.HasPrefix(filepath.Base(path), ".") {
 				return filepath.SkipDir
 			}
 
@@ -185,11 +210,11 @@ func (r *Runner) watch() {
 				case fsnotify.Rename:
 					fallthrough
 				case fsnotify.Remove:
-					if !startsAnyWith(r.excludeDirs, event.Name) {
+					if !startsWithAny(r.excludeDirs, event.Name) {
 						r.watcher.Remove(event.Name)
 					}
 				case fsnotify.Create:
-					if startsAnyWith(r.excludeDirs, event.Name) {
+					if startsWithAny(r.excludeDirs, event.Name) {
 						continue
 					}
 
@@ -297,7 +322,7 @@ func isDir(path string) bool {
 	return fi.IsDir()
 }
 
-func startsAnyWith(prefixes []string, s string) bool {
+func startsWithAny(prefixes []string, s string) bool {
 	for i := range prefixes {
 		if strings.HasPrefix(s, prefixes[i]) {
 			return true

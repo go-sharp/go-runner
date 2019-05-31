@@ -26,7 +26,7 @@ func main() {
 
 	if *help {
 		fmt.Printf("Usage for %v | Version %v:\n\n", os.Args[0], Version)
-		fmt.Printf("%v [Options] arguments...\n\nOptions:\n", os.Args[0])
+		fmt.Printf("%v [Options] \n\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
