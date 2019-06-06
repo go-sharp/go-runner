@@ -223,12 +223,12 @@ func (r *Runner) watch() {
 					}
 				}
 			} else {
-				switch filepath.Ext(event.Name) {
-				case ".go":
+				switch {
+				case strings.HasSuffix(event.Name, ".go"):
 					fallthrough
-				case "go.mod":
+				case filepath.Base(event.Name) == "go.mod":
 					fallthrough
-				case "go.sum":
+				case filepath.Base(event.Name) == "go.sum":
 					select {
 					case r.rsCh <- struct{}{}:
 						log.Infof("File '%v' changed, recompile...\n", event.Name)

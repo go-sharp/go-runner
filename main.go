@@ -10,7 +10,7 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-const Version = "0.1.6"
+const Version = "0.1.8"
 
 func main() {
 	cd := flag.StringP("entry", "e", "./", "The directory with the main.go file")
