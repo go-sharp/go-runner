@@ -5,11 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-sharp/go-runner/log"
 )
+
+const binName = "gr-tmp-bin"
 
 // Option configures a runner instance.
 type Option func(r *Runner)
@@ -103,6 +106,34 @@ func ExcludeDirs(paths ...string) Option {
 	})
 }
 
+// UseTags sets the tags for the go build command.
+func UseTags(tags ...string) Option {
+	return Option(func(r *Runner) {
+		r.tags = tags
+	})
+}
+
+// UseRaceDetector builds the binary with enabled race detector.
+func UseRaceDetector(useRD bool) Option {
+	return Option(func(r *Runner) {
+		r.useRD = useRD
+	})
+}
+
+// UseLDFlags sets the ldflags for the go build command.
+func UseLDFlags(flags string) Option {
+	return Option(func(r *Runner) {
+		r.ldflags = flags
+	})
+}
+
+// UseGCFlags sets the gcflags for the go build command.
+func UseGCFlags(flags string) Option {
+	return Option(func(r *Runner) {
+		r.gcflags = flags
+	})
+}
+
 func sanitizePaths(paths ...string) []string {
 	if len(paths) == 0 {
 		d, err := os.Getwd()
@@ -142,6 +173,10 @@ type Runner struct {
 	tstRecursive bool
 	watchDirs    []string
 	excludeDirs  []string
+	tags         []string
+	ldflags      string
+	gcflags      string
+	useRD        bool
 	main         *exec.Cmd
 	watcher      *fsnotify.Watcher
 	rsCh         chan struct{}
@@ -154,6 +189,10 @@ func (r *Runner) Stop() error {
 	if r.watcher != nil {
 		log.Infoln("Stop looking for file changes")
 		close(r.done)
+		defer func() {
+			r.watcher = nil
+			os.Remove(r.getBinPath())
+		}()
 		return r.watcher.Close()
 	}
 	return nil
@@ -172,7 +211,7 @@ func (r *Runner) Watch() (err error) {
 	}
 
 	for i := range r.watchDirs {
-		log.Infoln("Adding directory to watch list:", r.watchDirs[i])
+		log.Infoln("Adding directory to watch list: ", r.watchDirs[i])
 		r.watcher.Add(r.watchDirs[i])
 		filepath.Walk(r.watchDirs[i], func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() {
@@ -270,11 +309,15 @@ MAINLOOP:
 				}
 			}
 
-			r.main = &exec.Cmd{Dir: r.pwd, Path: r.goBin, Args: append([]string{"go", "run", "."}, r.cmdArgs...)}
-			r.main.Stdout = os.Stdout
-			r.main.Stderr = os.Stderr
-			if err := r.main.Start(); err != nil {
-				log.Errorf("Failed to start process: %v\n", err)
+			if err := r.buildMain(); err == nil {
+				r.main = &exec.Cmd{Dir: r.pwd, Path: r.getBinPath(), Args: append([]string{binName}, r.cmdArgs...)}
+				r.main.Stdout = os.Stdout
+				r.main.Stderr = os.Stderr
+				if err := r.main.Start(); err != nil {
+					log.Errorf("Failed to start process: %v\n", err)
+				}
+			} else {
+				log.Errorln("Failed to build binary: ", err)
 			}
 
 			select {
@@ -287,6 +330,43 @@ MAINLOOP:
 			}
 		}
 	}
+}
+
+func (r Runner) buildMain() error {
+	args := []string{"go", "build"}
+	args = append(args, "-o", r.getBinPath())
+
+	if len(r.tags) > 0 {
+		args = append(args, "-tags", strings.Join(r.tags, " "))
+	}
+
+	if r.useRD {
+		args = append(args, "-race")
+	}
+
+	if r.gcflags != "" {
+		args = append(args, "-gcflags", r.gcflags)
+	}
+
+	if r.ldflags != "" {
+		args = append(args, "-ldflags", r.ldflags)
+	}
+
+	os.Remove(r.getBinPath())
+
+	log.Infof("Building binary with cmd: '%v'\n", strings.Join(args, " "))
+	cmd := exec.Cmd{Dir: r.pwd, Path: r.goBin, Args: args}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (r Runner) getBinPath() string {
+	p := filepath.Join(r.pwd, binName)
+	if runtime.GOOS == "windows" {
+		p = p + ".exe"
+	}
+	return p
 }
 
 func (r *Runner) killMain() {
@@ -302,7 +382,7 @@ func (r *Runner) killMain() {
 	}
 }
 
-func (r *Runner) runTest(path string) error {
+func (r Runner) runTest(path string) error {
 	args := []string{"go", "test"}
 	if r.tstRecursive {
 		args = append(args, "./...")

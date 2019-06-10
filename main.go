@@ -10,7 +10,8 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-const Version = "0.1.8"
+// Version is the current application version
+const Version = "0.1.9"
 
 func main() {
 	cd := flag.StringP("entry", "e", "./", "The directory with the main.go file")
@@ -19,14 +20,13 @@ func main() {
 	recursiveTests := flag.BoolP("test-non-recursive", "r", false, "Don't run tests recursively")
 	watchDirs := flag.StringSliceP("watch-dirs", "w", []string{"./"}, "Directories to listen recursively for file changes (*.go, go.mod, go.sum)")
 	excludeDirs := flag.StringSliceP("exclude-dirs", "x", []string{}, "Don't listen to changes in these directories")
-	cmdArgs := flag.StringSliceP("args", "a", []string{}, "Arguments to pass to the program")
 	help := flag.BoolP("help", "h", false, "Show help")
 
 	flag.Parse()
 
 	if *help {
 		fmt.Printf("Usage for %v | Version %v:\n\n", os.Args[0], Version)
-		fmt.Printf("%v [Options] \n\nOptions:\n", os.Args[0])
+		fmt.Printf("%v [Options] [-- arguments (ex. -c config.json --http=:8080 1234)] \n\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
@@ -37,7 +37,7 @@ func main() {
 		runner.RecursiveTests(!*recursiveTests),
 		runner.WatchDirs(*watchDirs...),
 		runner.ExcludeDirs(*excludeDirs...),
-		runner.CommandArgs(*cmdArgs...))
+		runner.CommandArgs(flag.Args()...))
 
 	if err := r.Watch(); err != nil {
 		log.Errorln(err)
