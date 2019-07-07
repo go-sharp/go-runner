@@ -2,6 +2,8 @@ package runner
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +26,7 @@ func NewRunner(options ...Option) *Runner {
 		panic("go compiler not found: " + err.Error())
 	}
 
-	runner := &Runner{rsCh: make(chan struct{}), goBin: goBin}
+	runner := &Runner{rsCh: make(chan struct{}), stopped: make(chan struct{}), goBin: goBin}
 	WorkingDirectory("./")(runner)
 	TestWorkingDirectories("./")(runner)
 	for _, fn := range options {
@@ -134,6 +136,16 @@ func UseGCFlags(flags string) Option {
 	})
 }
 
+// UseDelve will use delve to start the binary.
+func UseDelve(useDlv bool, apiVerion int, port uint16, address net.IP) Option {
+	return Option(func(r *Runner) {
+		r.useDlv = useDlv
+		r.dlvP = port
+		r.dlvIP = address
+		r.dlvAPIV = apiVerion
+	})
+}
+
 func sanitizePaths(paths ...string) []string {
 	if len(paths) == 0 {
 		d, err := os.Getwd()
@@ -177,25 +189,34 @@ type Runner struct {
 	ldflags      string
 	gcflags      string
 	useRD        bool
+	useDlv       bool
+	dlvP         uint16
+	dlvIP        net.IP
+	dlvAPIV      int
 	main         *exec.Cmd
 	watcher      *fsnotify.Watcher
 	rsCh         chan struct{}
 	done         chan struct{}
+	stopped      chan struct{}
 }
 
 // Stop stops the runner from listening to file changes and
 // shuts down the main go program.
-func (r *Runner) Stop() error {
+func (r *Runner) Stop() (err error) {
 	if r.watcher != nil {
 		log.Infoln("Stop looking for file changes")
+
 		close(r.done)
-		defer func() {
-			r.watcher = nil
-			os.Remove(r.getBinPath())
-		}()
-		return r.watcher.Close()
+		err = r.watcher.Close()
+
+		// Wait for goroutines to finish
+		<-r.stopped
+		<-r.stopped
+
+		os.Remove(r.getBinPath())
+		r.watcher = nil
 	}
-	return nil
+	return err
 }
 
 // Watch starts listening for file changes.
@@ -233,14 +254,12 @@ func (r *Runner) Watch() (err error) {
 }
 
 func (r *Runner) watch() {
-	defer func() {
-		r.watcher = nil
-	}()
+OUTER:
 	for {
 		select {
 		case event, ok := <-r.watcher.Events:
 			if !ok {
-				return
+				break OUTER
 			}
 
 			// if event is a dir add or remove it from the watcher
@@ -277,11 +296,12 @@ func (r *Runner) watch() {
 			}
 		case err, ok := <-r.watcher.Errors:
 			if !ok {
-				return
+				break OUTER
 			}
 			log.Errorln("Error while watching files:", err)
 		}
 	}
+	r.stopped <- struct{}{}
 }
 
 func (r *Runner) run() {
@@ -289,14 +309,14 @@ MAINLOOP:
 	for {
 		select {
 		case <-r.done:
-			return
+			break MAINLOOP
 		default:
 			if r.runTst {
 				log.Infoln("Running tests...")
 				for i := range r.tstPwd {
 					select {
 					case <-r.done:
-						return
+						break MAINLOOP
 					case <-r.rsCh:
 						continue MAINLOOP
 					default:
@@ -310,9 +330,7 @@ MAINLOOP:
 			}
 
 			if err := r.buildMain(); err == nil {
-				r.main = &exec.Cmd{Dir: r.pwd, Path: r.getBinPath(), Args: append([]string{binName}, r.cmdArgs...)}
-				r.main.Stdout = os.Stdout
-				r.main.Stderr = os.Stderr
+				r.createCommand()
 				if err := r.main.Start(); err != nil {
 					log.Errorf("Failed to start process: %v\n", err)
 				}
@@ -323,12 +341,34 @@ MAINLOOP:
 			select {
 			case <-r.done:
 				r.killMain()
-				return
+				break MAINLOOP
 			case <-r.rsCh:
 				r.killMain()
 				continue MAINLOOP
 			}
 		}
+	}
+	r.stopped <- struct{}{}
+}
+
+func (r *Runner) createCommand() {
+	r.main = &exec.Cmd{Dir: r.pwd}
+	r.main.Stdout = os.Stdout
+	r.main.Stderr = os.Stderr
+
+	if r.useDlv {
+		dlvPath, err := exec.LookPath("dlv")
+		// If we want to run delve and we don't find it
+		// we abort the program with a panic
+		if err != nil {
+			panic("Couldn't find dlv: " + err.Error())
+		}
+		r.main.Path = dlvPath
+		r.main.Args = append([]string{"dlv", "--headless", "--api-version", fmt.Sprintf("%v", r.dlvAPIV),
+			"-l", fmt.Sprintf("%v:%v", r.dlvIP, r.dlvP), "exec", r.getBinPath(), "--"}, r.cmdArgs...)
+	} else {
+		r.main.Path = r.getBinPath()
+		r.main.Args = append([]string{binName}, r.cmdArgs...)
 	}
 }
 
