@@ -6,10 +6,10 @@
 // If you use modules, dependencies will be downloaded automatically,
 // otherwise you need to download them manually.
 // 
-//  **Caveats**: A binary that creates own child processes, will not work 
-//  well with go-runner. This is because at the moment go-runner can only
-//  kill the main process. Furthermore if delve is used, the main program
-//  starts after a debugger client connects to the delve server.
+// **Caveats**: A binary that creates own child processes, will not work 
+// well with go-runner. This is because at the moment go-runner can only
+// kill the main process. Furthermore if delve is used, the main program
+// starts after a debugger client connects to the delve server.
 //
 //    Usage for go-runner | Version 0.2.0:
 //    
