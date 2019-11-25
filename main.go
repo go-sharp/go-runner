@@ -12,7 +12,7 @@ import (
 )
 
 // Version is the current application version
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 func main() {
 	var dlvPort = new(uint16)
@@ -28,6 +28,10 @@ func main() {
 	dlvIP := flag.IPP("address", "a", net.ParseIP("0.0.0.0"), "Listen address for delve")
 	dlvAPIV := flag.IntP("api-version", "v", 2, "API version to use for delve server")
 	help := flag.BoolP("help", "h", false, "Show help")
+	ldFlags := flag.StringP("ldflags", "l", "", "Linker flags to pass to the go build tool")
+	gcFlags := flag.StringP("gcflags", "g", "", "Compiler flags to pass to the go build tool")
+	useRace := flag.BoolP("race", "c", false, "Enable race detector")
+	tags := flag.StringSliceP("tags", "", []string{}, "Tags to pass to the go build tool")
 
 	flag.Parse()
 
@@ -45,7 +49,11 @@ func main() {
 		runner.WatchDirs(*watchDirs...),
 		runner.ExcludeDirs(*excludeDirs...),
 		runner.CommandArgs(flag.Args()...),
-		runner.UseDelve(*useDlv, *dlvAPIV, *dlvPort, *dlvIP))
+		runner.UseDelve(*useDlv, *dlvAPIV, *dlvPort, *dlvIP),
+		runner.UseRaceDetector(*useRace),
+		runner.UseLDFlags(*ldFlags),
+		runner.UseGCFlags(*gcFlags),
+		runner.UseTags(*tags...))
 
 	if err := r.Watch(); err != nil {
 		log.Errorln(err)
