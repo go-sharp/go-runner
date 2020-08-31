@@ -7,14 +7,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-sharp/go-runner/log"
 )
 
 const binName = "gr-tmp-bin"
+
+var dlvRegex = regexp.MustCompile(`[Vv]ersion:\s+(.+)`)
 
 // Option configures a runner instance.
 type Option func(r *Runner)
@@ -363,9 +367,16 @@ func (r *Runner) createCommand() {
 		if err != nil {
 			panic("Couldn't find dlv: " + err.Error())
 		}
+
+		args := []string{"dlv", "--headless", "--api-version", fmt.Sprintf("%v", r.dlvAPIV),
+			"-l", fmt.Sprintf("%v:%v", r.dlvIP, r.dlvP), "exec", r.getBinPath()}
+		if canUseContinue(dlvPath) {
+			args = append(args, "--continue", "--accept-multiclient")
+		}
+		args = append(args, "--")
+
 		r.main.Path = dlvPath
-		r.main.Args = append([]string{"dlv", "--headless", "--api-version", fmt.Sprintf("%v", r.dlvAPIV),
-			"-l", fmt.Sprintf("%v:%v", r.dlvIP, r.dlvP), "exec", r.getBinPath(), "--"}, r.cmdArgs...)
+		r.main.Args = append(args, r.cmdArgs...)
 	} else {
 		r.main.Path = r.getBinPath()
 		r.main.Args = append([]string{binName}, r.cmdArgs...)
@@ -458,4 +469,24 @@ func containsPath(paths []string, path string) bool {
 		}
 	}
 	return false
+}
+
+func canUseContinue(dlvPath string) bool {
+	stdOut, err := exec.Command(dlvPath, "version").Output()
+	if err != nil {
+		return false
+	}
+
+	matches := dlvRegex.FindStringSubmatch(string(stdOut))
+	if len(matches) != 2 {
+		return false
+	}
+
+	c, _ := semver.NewConstraint(" >=1.3.0")
+	v, err := semver.NewVersion(matches[1])
+	if err != nil {
+		return false
+	}
+
+	return c.Check(v)
 }
