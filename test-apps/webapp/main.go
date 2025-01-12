@@ -25,6 +25,7 @@ var templates = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 var caser = cases.Title(language.German)
 
 func main() {
+
 	// Static assets handler
 	http.Handle("/assets/", http.FileServer(http.FS(assetsFS)))
 
