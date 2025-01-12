@@ -1,0 +1,32 @@
+{{ block "base" . }}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ .Title }}</title>
+    <link rel="stylesheet" href="/assets/css/bulma.min.css" />
+  </head>
+  <body>
+    <section class="hero is-primary">
+      <div class="hero-body">
+        <div class="container">
+          <h1 class="title">Go Web Project</h1>
+          <h2 class="subtitle">A simple web project with Go and Bulma</h2>
+        </div>
+      </div>
+    </section>
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+      <div class="navbar-menu">
+        <a class="navbar-item" href="/">Home</a>
+        <a class="navbar-item" href="/about">About</a>
+        <a class="navbar-item" href="/contact">Contact</a>
+      </div>
+    </nav>
+    <section class="section">
+      <!-- <div class="container">{{ block "content" . }}{{ end }}</div> -->
+      <div class="container">{{ .Content }}</div>
+    </section>
+  </body>
+</html>
+{{ end }}
